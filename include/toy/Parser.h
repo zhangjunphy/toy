@@ -11,8 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_TUTORIAL_TOY_PARSER_H
-#define MLIR_TUTORIAL_TOY_PARSER_H
+#pragma once
 
 #include "toy/AST.h"
 #include "toy/Lexer.h"
@@ -485,5 +484,3 @@ private:
 };
 
 } // namespace toy
-
-#endif // MLIR_TUTORIAL_TOY_PARSER_H

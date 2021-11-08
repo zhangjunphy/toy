@@ -10,6 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
+#include "toy/AST.h"
+#include "toy/Dialect.h"
+#include "toy/MLIRGen.h"
 #include "toy/Parser.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -26,12 +31,13 @@ static cl::opt<std::string> inputFilename(cl::Positional,
                                           cl::init("-"),
                                           cl::value_desc("filename"));
 namespace {
-enum Action { None, DumpAST };
+enum Action { None, DumpAST, DumpMLIR };
 }
 
 static cl::opt<enum Action>
     emitAction("emit", cl::desc("Select the kind of output desired"),
-               cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")));
+               cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
+               cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")));
 
 /// Returns a Toy AST resulting from parsing the file or a nullptr on error.
 std::unique_ptr<toy::ModuleAST> parseInputFile(llvm::StringRef filename) {
@@ -47,6 +53,21 @@ std::unique_ptr<toy::ModuleAST> parseInputFile(llvm::StringRef filename) {
   return parser.parseModule();
 }
 
+int dumpMLIR() {
+  mlir::MLIRContext context;
+  context.getOrLoadDialect<mlir::toy::ToyDialect>();
+
+  auto moduleAST = parseInputFile(inputFilename);
+  if (!moduleAST)
+    return 6;
+  mlir::OwningModuleRef module = mlirGen(context, *moduleAST);
+  if (!module)
+    return 1;
+
+  module->dump();
+  return 0;
+}
+
 int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(argc, argv, "toy compiler\n");
 
@@ -58,6 +79,8 @@ int main(int argc, char **argv) {
   case Action::DumpAST:
     dump(*moduleAST);
     return 0;
+  case Action::DumpMLIR:
+    return dumpMLIR();
   default:
     llvm::errs() << "No action specified (parsing only?), use -emit=<action>\n";
   }

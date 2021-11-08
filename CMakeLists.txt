@@ -32,10 +32,17 @@ include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 
-add_library(libtoy ${PROJECT_SOURCE_DIR}/lib/parser/AST.cpp)
+add_subdirectory(include)
+
+add_library(libtoy
+  ${PROJECT_SOURCE_DIR}/lib/parser/AST.cpp
+  ${PROJECT_SOURCE_DIR}/lib/mlir/Dialect.cpp
+  ${PROJECT_SOURCE_DIR}/lib/mlir/MLIRGen.cpp
+  )
 
 add_llvm_executable(toy ${PROJECT_SOURCE_DIR}/src/toy.cpp)
 llvm_update_compile_flags(toy)
+add_dependencies(toy ToyOpsIncGen)
 target_link_libraries(toy PRIVATE libtoy MLIRSupport)
 
 mlir_check_all_link_libraries(toy)
