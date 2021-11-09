@@ -77,6 +77,16 @@ def MulOp : Toy_Op<"mul", [NoSideEffect]> {
   ];
 }
 
+def TransposeOp : Toy_Op<"transpose", [NoSideEffect]> {
+  let summary = "tensor transpose";
+  let description = [{
+    Transpose a tensor.
+  }];
+
+  let arguments = (ins F64Tensor:$lhs);
+  let results = (outs F64Tensor);
+}
+
 
 def ReshapeOp : Toy_Op<"reshape", [NoSideEffect]> {
   let summary = "tensor reshape";
@@ -107,6 +117,15 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">, Terminator]>
   }];
 
   let verifier = [{ return ::verify(*this); }];
+}
+
+def PrintOp : Toy_Op<"print", [HasParent<"FuncOp">]> {
+  let summary = "print operation";
+  let description = [{
+    Print contents of a tensor.
+  }];
+
+  let arguments = (ins F64Tensor:$input);
 }
 
 #endif //TOY_OPS

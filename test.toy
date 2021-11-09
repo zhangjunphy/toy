@@ -10,7 +10,11 @@ def main() {
   var c = a + b;
   var d = a * b;
 
+  var e = 5;
+
+  print (c * d);
+
   # transpose() and print() are the only builtin, the following will transpose
   # a and b and perform an element-wise multiplication before printing the result.
-  #print(transpose(a) * transpose(b));
+  print(transpose(transpose(a)) * transpose(b));
 }

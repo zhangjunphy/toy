@@ -62,52 +62,12 @@ private:
     return mlir::success();
   }
 
-  mlir::Value mlirGen(toy::VarDeclExprAST &vardecl) {
-    auto init = vardecl.getInitVal();
-    if (!init) {
-      mlir::emitError(loc(vardecl.loc()), "missing initial value");
-      return nullptr;
-    }
-
-    mlir::Value value = mlirGen(*init);
-    if (!value)
-      return nullptr;
-
-    if (!vardecl.getType().shape.empty()) {
-      value = builder.create<mlir::toy::ReshapeOp>(
-          loc(vardecl.loc()), getType(vardecl.getType()), value);
-    }
-
-    if (mlir::failed(declare(vardecl.getName(), value)))
-      return nullptr;
-    return value;
-  }
-
   mlir::FuncOp mlirGen(toy::PrototypeAST &proto) {
     auto location = loc(proto.loc());
     llvm::SmallVector<mlir::Type, 4> arg_types(proto.getArgs().size(),
                                                getType(toy::VarType{}));
     auto func_type = builder.getFunctionType(arg_types, llvm::None);
     return mlir::FuncOp::create(location, proto.getName(), func_type);
-  }
-
-  mlir::LogicalResult mlirGen(toy::ExprASTList &blockAST) {
-    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> var_scope(
-        symbolTable);
-    for (auto &expr : blockAST) {
-      if (auto *vardecl = mlir::dyn_cast<toy::VarDeclExprAST>(expr.get())) {
-        if (!mlirGen(*vardecl))
-          return mlir::failure();
-        continue;
-      }
-      if (auto *ret = mlir::dyn_cast<toy::ReturnExprAST>(expr.get()))
-        return mlirGen(*ret);
-
-      if (!mlirGen(*expr))
-        return mlir::failure();
-    }
-
-    return mlir::success();
   }
 
   mlir::FuncOp mlirGen(toy::FunctionAST &funcAST) {
@@ -148,6 +108,79 @@ private:
     return function;
   }
 
+  mlir::LogicalResult mlirGen(toy::ExprASTList &blockAST) {
+    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> var_scope(
+        symbolTable);
+    for (auto &expr : blockAST) {
+      // statements should only appear in top level of a block
+      if (auto *vardecl = mlir::dyn_cast<toy::VarDeclExprAST>(expr.get())) {
+        if (!mlirGen(*vardecl))
+          return mlir::failure();
+        continue;
+      }
+      if (auto *ret = mlir::dyn_cast<toy::ReturnExprAST>(expr.get()))
+        return mlirGen(*ret);
+      if (auto *print = mlir::dyn_cast<toy::PrintExprAST>(expr.get())) {
+        if (mlir::failed(mlirGen(*print)))
+          return mlir::failure();
+        continue;
+      }
+
+      // handle real expressions which could be nested
+      if (!mlirGen(*expr))
+        return mlir::failure();
+    }
+
+    return mlir::success();
+  }
+
+  mlir::Value mlirGen(toy::VarDeclExprAST &vardecl) {
+    auto init = vardecl.getInitVal();
+    if (!init) {
+      mlir::emitError(loc(vardecl.loc()), "missing initial value");
+      return nullptr;
+    }
+
+    mlir::Value value = mlirGen(*init);
+    if (!value)
+      return nullptr;
+
+    if (!vardecl.getType().shape.empty()) {
+      value = builder.create<mlir::toy::ReshapeOp>(
+          loc(vardecl.loc()), getType(vardecl.getType()), value);
+    }
+
+    if (mlir::failed(declare(vardecl.getName(), value)))
+      return nullptr;
+    return value;
+  }
+
+  mlir::LogicalResult mlirGen(toy::ReturnExprAST &ret) {
+    auto location = loc(ret.loc());
+
+    mlir::Value expr = nullptr;
+    if (ret.getExpr().hasValue()) {
+      if (!(expr = mlirGen(*ret.getExpr().getValue())))
+        return mlir::failure();
+    }
+
+    builder.create<mlir::toy::ReturnOp>(location,
+                                        expr ? llvm::makeArrayRef(expr)
+                                             : llvm::ArrayRef<mlir::Value>());
+    return mlir::success();
+  }
+
+  mlir::LogicalResult mlirGen(toy::PrintExprAST &print) {
+    auto location = loc(print.loc());
+
+    if (mlir::Value expr = mlirGen(*print.getArg())) {
+      builder.create<mlir::toy::PrintOp>(location, expr);
+      return mlir::success();
+    }
+
+    return mlir::failure();
+  }
+
   mlir::Value mlirGen(toy::ExprAST &expr) {
     switch (expr.getKind()) {
     case toy::ExprAST::Expr_BinOp:
@@ -156,6 +189,10 @@ private:
       return mlirGen(mlir::cast<toy::VariableExprAST>(expr));
     case toy::ExprAST::Expr_Literal:
       return mlirGen(mlir::cast<toy::LiteralExprAST>(expr));
+    case toy::ExprAST::Expr_Num:
+      return mlirGen(mlir::cast<toy::NumberExprAST>(expr));
+    case toy::ExprAST::Expr_Call:
+      return mlirGen(mlir::cast<toy::CallExprAST>(expr));
     default:
       mlir::emitError(loc(expr.loc()))
           << "Unhandled expr kind '" << mlir::Twine(expr.getKind()) << "'";
@@ -170,7 +207,7 @@ private:
     mlir::Value rhs = mlirGen(*bin.getRHS());
     if (!rhs)
       return nullptr;
-    
+
     auto location = loc(bin.loc());
 
     switch (bin.getOp()) {
@@ -180,7 +217,8 @@ private:
       return builder.create<mlir::toy::MulOp>(location, lhs, rhs);
     }
 
-    mlir::emitError(location, "invalid binary operator '") << bin.getOp() << "'";
+    mlir::emitError(location, "invalid binary operator '")
+        << bin.getOp() << "'";
     return nullptr;
   }
 
@@ -188,7 +226,8 @@ private:
     if (auto variable = symbolTable.lookup(var.getName()))
       return variable;
 
-    mlir::emitError(loc(var.loc()), "unknown variable: '") << var.getName() << "'";
+    mlir::emitError(loc(var.loc()), "unknown variable: '")
+        << var.getName() << "'";
     return nullptr;
   }
 
@@ -209,19 +248,43 @@ private:
                                                  dataAttribute);
   }
 
-  mlir::LogicalResult mlirGen(toy::ReturnExprAST &ret) {
-    auto location = loc(ret.loc());
+  mlir::Value mlirGen(toy::NumberExprAST &num) {
+    std::vector<double> data = {num.getValue()};
 
-    mlir::Value expr = nullptr;
-    if (ret.getExpr().hasValue()) {
-      if (!(expr = mlirGen(*ret.getExpr().getValue())))
-        return mlir::failure();
+    mlir::Type elementType = builder.getF64Type();
+    auto dataType = mlir::RankedTensorType::get({1}, elementType);
+    auto dataAttribute =
+        mlir::DenseElementsAttr::get(dataType, llvm::makeArrayRef(data));
+
+    return builder.create<mlir::toy::ConstantOp>(loc(num.loc()), dataType,
+                                                 dataAttribute);
+  }
+
+  mlir::Value mlirGen(toy::CallExprAST &call) {
+    llvm::StringRef callee = call.getCallee();
+    mlir::Location location = loc(call.loc());
+
+    mlir::SmallVector<mlir::Value, 4> operands;
+    for (auto &expr : call.getArgs()) {
+      auto arg = mlirGen(*expr);
+      if (!arg)
+        return nullptr;
+      operands.push_back(arg);
     }
 
-    builder.create<mlir::toy::ReturnOp>(location,
-                                        expr ? llvm::makeArrayRef(expr)
-                                             : llvm::ArrayRef<mlir::Value>());
-    return mlir::success();
+    if (callee == "transpose") {
+      if (call.getArgs().size() != 1) {
+        mlir::emitError(location,
+                        "toy.transpose does not accept multiple arguments");
+        return nullptr;
+      }
+
+      return builder.create<mlir::toy::TransposeOp>(
+          location, mlir::UnrankedTensorType::get(builder.getF64Type()),
+          operands[0]);
+    }
+
+    // return builder.create<GenericCallOp>(location, call.getArgs());
   }
 
   void collectData(toy::ExprAST &expr, std::vector<double> &data) {
