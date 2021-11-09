@@ -62,15 +62,25 @@ private:
     return mlir::success();
   }
 
-  mlir::Value mlirGen(toy::ExprAST &expr) {
-    switch (expr.getKind()) {
-    case toy::ExprAST::Expr_Literal:
-      return mlirGen(mlir::cast<toy::LiteralExprAST>(expr));
-    default:
-      mlir::emitError(loc(expr.loc()))
-          << "Unhandled expr kind '" << mlir::Twine(expr.getKind()) << "'";
+  mlir::Value mlirGen(toy::VarDeclExprAST &vardecl) {
+    auto init = vardecl.getInitVal();
+    if (!init) {
+      mlir::emitError(loc(vardecl.loc()), "missing initial value");
       return nullptr;
     }
+
+    mlir::Value value = mlirGen(*init);
+    if (!value)
+      return nullptr;
+
+    if (!vardecl.getType().shape.empty()) {
+      value = builder.create<mlir::toy::ReshapeOp>(
+          loc(vardecl.loc()), getType(vardecl.getType()), value);
+    }
+
+    if (mlir::failed(declare(vardecl.getName(), value)))
+      return nullptr;
+    return value;
   }
 
   mlir::FuncOp mlirGen(toy::PrototypeAST &proto) {
@@ -82,8 +92,14 @@ private:
   }
 
   mlir::LogicalResult mlirGen(toy::ExprASTList &blockAST) {
-    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> var_scope(symbolTable);
+    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> var_scope(
+        symbolTable);
     for (auto &expr : blockAST) {
+      if (auto *vardecl = mlir::dyn_cast<toy::VarDeclExprAST>(expr.get())) {
+        if (!mlirGen(*vardecl))
+          return mlir::failure();
+        continue;
+      }
       if (auto *ret = mlir::dyn_cast<toy::ReturnExprAST>(expr.get()))
         return mlirGen(*ret);
 
@@ -125,35 +141,72 @@ private:
     if (!returnOp) {
       builder.create<mlir::toy::ReturnOp>(loc(funcAST.getProto()->loc()));
     } else if (returnOp.hasOperand()) {
-      function.setType(builder.getFunctionType(function.getType().getInputs(), getType(toy::VarType{})));
+      function.setType(builder.getFunctionType(function.getType().getInputs(),
+                                               getType(toy::VarType{})));
     }
 
     return function;
   }
 
-  void collectData(toy::ExprAST &expr, std::vector<double> &data) {
-    if (auto *lit = mlir::dyn_cast<toy::LiteralExprAST>(&expr)) {
-      for (auto &value : lit->getValues()) 
-        collectData(*value, data);
-      return;
+  mlir::Value mlirGen(toy::ExprAST &expr) {
+    switch (expr.getKind()) {
+    case toy::ExprAST::Expr_BinOp:
+      return mlirGen(mlir::cast<toy::BinaryExprAST>(expr));
+    case toy::ExprAST::Expr_Var:
+      return mlirGen(mlir::cast<toy::VariableExprAST>(expr));
+    case toy::ExprAST::Expr_Literal:
+      return mlirGen(mlir::cast<toy::LiteralExprAST>(expr));
+    default:
+      mlir::emitError(loc(expr.loc()))
+          << "Unhandled expr kind '" << mlir::Twine(expr.getKind()) << "'";
+      return nullptr;
+    }
+  }
+
+  mlir::Value mlirGen(toy::BinaryExprAST &bin) {
+    mlir::Value lhs = mlirGen(*bin.getLHS());
+    if (!lhs)
+      return nullptr;
+    mlir::Value rhs = mlirGen(*bin.getRHS());
+    if (!rhs)
+      return nullptr;
+    
+    auto location = loc(bin.loc());
+
+    switch (bin.getOp()) {
+    case '+':
+      return builder.create<mlir::toy::AddOp>(location, lhs, rhs);
+    case '*':
+      return builder.create<mlir::toy::MulOp>(location, lhs, rhs);
     }
 
-    assert(mlir::isa<toy::NumberExprAST>(expr) && "expected literal or number");
-    data.push_back(mlir::cast<toy::NumberExprAST>(expr).getValue());
+    mlir::emitError(location, "invalid binary operator '") << bin.getOp() << "'";
+    return nullptr;
+  }
+
+  mlir::Value mlirGen(toy::VariableExprAST &var) {
+    if (auto variable = symbolTable.lookup(var.getName()))
+      return variable;
+
+    mlir::emitError(loc(var.loc()), "unknown variable: '") << var.getName() << "'";
+    return nullptr;
   }
 
   mlir::Value mlirGen(toy::LiteralExprAST &lit) {
     auto type = getType(lit.getDims());
 
     std::vector<double> data;
-    data.reserve(std::accumulate(lit.getDims().begin(), lit.getDims().end(), 1, std::multiplies<int>()));
+    data.reserve(std::accumulate(lit.getDims().begin(), lit.getDims().end(), 1,
+                                 std::multiplies<int>()));
     collectData(lit, data);
 
     mlir::Type elementType = builder.getF64Type();
     auto dataType = mlir::RankedTensorType::get(lit.getDims(), elementType);
-    auto dataAttribute = mlir::DenseElementsAttr::get(dataType, llvm::makeArrayRef(data));
+    auto dataAttribute =
+        mlir::DenseElementsAttr::get(dataType, llvm::makeArrayRef(data));
 
-    return builder.create<mlir::toy::ConstantOp>(loc(lit.loc()), type, dataAttribute);
+    return builder.create<mlir::toy::ConstantOp>(loc(lit.loc()), type,
+                                                 dataAttribute);
   }
 
   mlir::LogicalResult mlirGen(toy::ReturnExprAST &ret) {
@@ -165,8 +218,21 @@ private:
         return mlir::failure();
     }
 
-    builder.create<mlir::toy::ReturnOp>(location, expr ? llvm::makeArrayRef(expr) : llvm::ArrayRef<mlir::Value>());
+    builder.create<mlir::toy::ReturnOp>(location,
+                                        expr ? llvm::makeArrayRef(expr)
+                                             : llvm::ArrayRef<mlir::Value>());
     return mlir::success();
+  }
+
+  void collectData(toy::ExprAST &expr, std::vector<double> &data) {
+    if (auto *lit = mlir::dyn_cast<toy::LiteralExprAST>(&expr)) {
+      for (auto &value : lit->getValues())
+        collectData(*value, data);
+      return;
+    }
+
+    assert(mlir::isa<toy::NumberExprAST>(expr) && "expected literal or number");
+    data.push_back(mlir::cast<toy::NumberExprAST>(expr).getValue());
   }
 
   mlir::Type getType(mlir::ArrayRef<int64_t> shape) {
@@ -176,16 +242,15 @@ private:
     return mlir::RankedTensorType::get(shape, builder.getF64Type());
   }
 
-  mlir::Type getType(const toy::VarType &type) {
-    return getType(type.shape);
-  }
+  mlir::Type getType(const toy::VarType &type) { return getType(type.shape); }
 };
 
 } // namespace
 
 namespace toy {
 
-mlir::OwningModuleRef mlirGen(mlir::MLIRContext &context, ModuleAST &moduleAST) {
+mlir::OwningModuleRef mlirGen(mlir::MLIRContext &context,
+                              ModuleAST &moduleAST) {
   return MLIRGenImpl(context).mlirGen(moduleAST);
 }
-}
+} // namespace toy

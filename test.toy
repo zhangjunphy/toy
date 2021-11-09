@@ -7,7 +7,10 @@ def main() {
   # variables is the way to reshape tensors (element count must match).
   var b<2, 3> = [1, 2, 3, 4, 5, 6];
 
+  var c = a + b;
+  var d = a * b;
+
   # transpose() and print() are the only builtin, the following will transpose
   # a and b and perform an element-wise multiplication before printing the result.
-  print(transpose(a) * transpose(b));
+  #print(transpose(a) * transpose(b));
 }

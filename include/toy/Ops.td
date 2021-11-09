@@ -35,12 +35,57 @@ def ConstantOp : Toy_Op<"Constant", [NoSideEffect]> {
 
   let builders = [
     OpBuilder<(ins "DenseElementsAttr":$value), [{
-      build($_builder, &_state, value.getType(), value);
+      build($_builder, $_state, value.getType(), value);
     }]>,
     OpBuilder<(ins "double":$value)>
   ];
 
-  let verifier = [{ return ::verifier(*this); }];
+  let verifier = [{ return ::verify(*this); }];
+}
+
+def AddOp : Toy_Op<"add", [NoSideEffect]> {
+  let summary = "tensor addition";
+  let description = [{
+    Element-wise addtion of two compatible tensors.
+  }];
+
+  let arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs);
+  let results = (outs F64Tensor);
+
+  let parser = [{ return ::parseBinaryOp(parser, result); }];
+  let printer = [{ return ::printBinaryOp(p, *this); }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
+  ];
+}
+
+def MulOp : Toy_Op<"mul", [NoSideEffect]> {
+  let summary = "tensor multiplication";
+  let description = [{
+    Element-wise multiplication.
+  }];
+
+  let arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs);
+  let results = (outs F64Tensor);
+
+  let parser = [{ return ::parseBinaryOp(parser, result); }];
+  let printer = [{ return ::printBinaryOp(p, *this); }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
+  ];
+}
+
+
+def ReshapeOp : Toy_Op<"reshape", [NoSideEffect]> {
+  let summary = "tensor reshape";
+  let description = [{
+    Transform the tensor into a different shape.
+  }];
+
+  let arguments = (ins F64Tensor:$input);
+  let results = (outs StaticShapeTensorOf<[F64]>);
 }
 
 def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">, Terminator]> {

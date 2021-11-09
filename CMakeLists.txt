@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13.4)
-project(standalone-dialect LANGUAGES CXX C)
+project(toy LANGUAGES CXX C)
 
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
@@ -39,10 +39,15 @@ add_library(libtoy
   ${PROJECT_SOURCE_DIR}/lib/mlir/Dialect.cpp
   ${PROJECT_SOURCE_DIR}/lib/mlir/MLIRGen.cpp
   )
+llvm_update_compile_flags(libtoy)
+add_dependencies(libtoy ToyOpsIncGen)
 
 add_llvm_executable(toy ${PROJECT_SOURCE_DIR}/src/toy.cpp)
 llvm_update_compile_flags(toy)
-add_dependencies(toy ToyOpsIncGen)
-target_link_libraries(toy PRIVATE libtoy MLIRSupport)
+target_link_libraries(toy
+  PRIVATE
+  libtoy
+  MLIRSupport MLIRAnalysis MLIRIR MLIRParser
+  MLIRSideEffectInterfaces MLIRTransforms)
 
 mlir_check_all_link_libraries(toy)

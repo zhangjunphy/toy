@@ -33,11 +33,10 @@ static cl::opt<std::string> inputFilename(cl::Positional,
 namespace {
 enum Action { None, DumpAST, DumpMLIR };
 }
-
-static cl::opt<enum Action>
-    emitAction("emit", cl::desc("Select the kind of output desired"),
-               cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
-               cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")));
+static cl::opt<enum Action> emitAction(
+    "emit", cl::desc("Select the kind of output desired"),
+    cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
+    cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")));
 
 /// Returns a Toy AST resulting from parsing the file or a nullptr on error.
 std::unique_ptr<toy::ModuleAST> parseInputFile(llvm::StringRef filename) {
