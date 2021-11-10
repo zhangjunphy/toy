@@ -284,7 +284,9 @@ private:
           operands[0]);
     }
 
-    // return builder.create<GenericCallOp>(location, call.getArgs());
+    return builder.create<mlir::toy::GenericCallOp>(
+        location, mlir::UnrankedTensorType::get(builder.getF64Type()), callee,
+        operands);
   }
 
   void collectData(toy::ExprAST &expr, std::vector<double> &data) {

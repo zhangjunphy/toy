@@ -119,6 +119,16 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">, Terminator]>
   let verifier = [{ return ::verify(*this); }];
 }
 
+def GenericCallOp : Toy_Op<"call"> {
+  let summary = "generic function call";
+  let description = [{
+    Generic function call
+  }];
+
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<F64Tensor>:$input);
+  let results = (outs F64Tensor);
+}
+
 def PrintOp : Toy_Op<"print", [HasParent<"FuncOp">]> {
   let summary = "print operation";
   let description = [{
