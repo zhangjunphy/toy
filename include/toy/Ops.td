@@ -85,6 +85,8 @@ def TransposeOp : Toy_Op<"transpose", [NoSideEffect]> {
 
   let arguments = (ins F64Tensor:$lhs);
   let results = (outs F64Tensor);
+
+  let hasCanonicalizer = 1;
 }
 
 

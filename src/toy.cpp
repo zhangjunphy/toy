@@ -10,12 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/MLIRContext.h"
 #include "toy/AST.h"
 #include "toy/Dialect.h"
 #include "toy/MLIRGen.h"
 #include "toy/Parser.h"
+
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
@@ -37,6 +41,8 @@ static cl::opt<enum Action> emitAction(
     "emit", cl::desc("Select the kind of output desired"),
     cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
     cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")));
+
+static cl::opt<bool> enableOpt("opt", cl::desc("Enable optimizations"));
 
 /// Returns a Toy AST resulting from parsing the file or a nullptr on error.
 std::unique_ptr<toy::ModuleAST> parseInputFile(llvm::StringRef filename) {
@@ -62,6 +68,14 @@ int dumpMLIR() {
   mlir::OwningModuleRef module = mlirGen(context, *moduleAST);
   if (!module)
     return 1;
+
+  if (enableOpt) {
+    mlir::PassManager pm(&context);
+    mlir::applyPassManagerCLOptions(pm);
+    pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
+    if (mlir::failed(pm.run(*module)))
+      return 4;
+  }
 
   module->dump();
   return 0;

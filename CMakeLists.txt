@@ -15,8 +15,7 @@ set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
 set(MLIR_BINARY_DIR ${CMAKE_BINARY_DIR})
 
 set(LLVM_LINK_COMPONENTS
-  Support
-  )
+  Support)
 
 list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
@@ -33,14 +32,7 @@ link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 
 add_subdirectory(include)
-
-add_library(libtoy
-  ${PROJECT_SOURCE_DIR}/lib/parser/AST.cpp
-  ${PROJECT_SOURCE_DIR}/lib/mlir/Dialect.cpp
-  ${PROJECT_SOURCE_DIR}/lib/mlir/MLIRGen.cpp
-  )
-llvm_update_compile_flags(libtoy)
-add_dependencies(libtoy ToyOpsIncGen)
+add_subdirectory(lib)
 
 add_llvm_executable(toy ${PROJECT_SOURCE_DIR}/src/toy.cpp)
 llvm_update_compile_flags(toy)
