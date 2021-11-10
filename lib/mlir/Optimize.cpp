@@ -1,14 +1,15 @@
+#include "toy/Dialect.h"
+
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LogicalResult.h"
-#include "toy/Dialect.h"
 
-// namespace {
-// #include "Optimize.inc"
-// }
+namespace {
+#include "Optimize.inc"
+}
 
 struct SimplifyRedundantTranspose
     : public mlir::OpRewritePattern<mlir::toy::TransposeOp> {
@@ -33,4 +34,10 @@ struct SimplifyRedundantTranspose
 void mlir::toy::TransposeOp::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
   results.add<SimplifyRedundantTranspose>(context);
+}
+
+void mlir::toy::ReshapeOp::getCanonicalizationPatterns(
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<ReshapeReshapeOptPattern, RedundantReshapeOptPattern,
+              FoldConstantReshapeOptPattern>(context);
 }

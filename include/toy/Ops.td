@@ -98,6 +98,8 @@ def ReshapeOp : Toy_Op<"reshape", [NoSideEffect]> {
 
   let arguments = (ins F64Tensor:$input);
   let results = (outs StaticShapeTensorOf<[F64]>);
+
+  let hasCanonicalizer = 1;
 }
 
 def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">, Terminator]> {
