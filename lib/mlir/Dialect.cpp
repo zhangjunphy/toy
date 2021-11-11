@@ -15,6 +15,7 @@
 #include "mlir/Support/LogicalResult.h"
 
 #include "toy/Dialect.cpp.inc"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/SMLoc.h"
 
@@ -127,6 +128,10 @@ void mlir::toy::AddOp::build(mlir::OpBuilder &builder,
   state.addOperands({lhs, rhs});
 }
 
+void mlir::toy::AddOp::inferShapes() {
+  getResult().setType(getOperand(0).getType());
+}
+
 //===----------------------------------------------------------------------===//
 // MulOp
 void mlir::toy::MulOp::build(mlir::OpBuilder &builder,
@@ -134,6 +139,24 @@ void mlir::toy::MulOp::build(mlir::OpBuilder &builder,
                              mlir::Value rhs) {
   state.addTypes(mlir::UnrankedTensorType::get(builder.getF64Type()));
   state.addOperands({lhs, rhs});
+}
+
+void mlir::toy::MulOp::inferShapes() {
+  getResult().setType(getOperand(0).getType());
+}
+
+//===----------------------------------------------------------------------===//
+// TransposeOp
+void mlir::toy::TransposeOp::inferShapes() {
+  auto operandType = getOperand().getType();
+  if (operandType.isa<ShapedType>()) {
+    auto shapedType = operandType.cast<ShapedType>();
+    auto shape = shapedType.getShape();
+    if (shape.size() == 2) {
+      std::vector<int64_t> dims = {shape[1], shape[0]};
+      getResult().setType(shapedType.clone(dims));
+    }
+  }
 }
 
 //===----------------------------------------------------------------------===//

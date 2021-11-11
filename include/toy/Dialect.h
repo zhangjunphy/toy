@@ -4,6 +4,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
+#include "toy/ShapeInferenceOpInterface.h"
 
 #include "toy/Dialect.h.inc"
 

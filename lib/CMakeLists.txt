@@ -6,6 +6,7 @@ add_library(libtoy
   parser/AST.cpp
   mlir/Dialect.cpp
   mlir/MLIRGen.cpp
-  mlir/Optimize.cpp)
+  mlir/Optimize.cpp
+  mlir/ShapeInferencePass.cpp)
 llvm_update_compile_flags(libtoy)
-add_dependencies(libtoy ToyOpsIncGen ToyOptimizeIncGen)
+add_dependencies(libtoy ToyOpsIncGen ToyOptimizeIncGen ToyShapeInferenceOpInterfaceGen)

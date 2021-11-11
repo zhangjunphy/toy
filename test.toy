@@ -9,18 +9,19 @@ def main() {
   var g<6, 1> = b;
   print(g);
 
-  var c = a + b;
+  # var c = a + b;
   var d = a * b;
+  print(d);
 
-  var e = 5;
+  #var e = 5;
 
-  var f = transpose(transpose(a));
+  var f = transpose(a);
   print(f);
 
-  test(a);
+  #test(a);
 
   # transpose() and print() are the only builtin, the following will transpose
   # a and b and perform an element-wise multiplication before printing the result.
-  print(transpose(transpose(a)) * transpose(b));
+  #print(transpose(transpose(a)) * transpose(b));
 
 }

@@ -1,4 +1,5 @@
 #include "toy/MLIRGen.h"
+
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
@@ -6,15 +7,12 @@
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
-#include "toy/AST.h"
-#include "toy/Dialect.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Value.h"
-#include "toy/Lexer.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
@@ -22,6 +20,11 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+
+#include "toy/AST.h"
+#include "toy/Dialect.h"
+#include "toy/Lexer.h"
+
 #include <cassert>
 #include <functional>
 #include <numeric>

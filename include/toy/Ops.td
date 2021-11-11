@@ -3,6 +3,7 @@
 
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "toy/ShapeInferenceOpInterface.td"
 
 
 //===----------------------------------------------------------------------===//
@@ -43,7 +44,7 @@ def ConstantOp : Toy_Op<"Constant", [NoSideEffect]> {
   let verifier = [{ return ::verify(*this); }];
 }
 
-def AddOp : Toy_Op<"add", [NoSideEffect]> {
+def AddOp : Toy_Op<"add", [NoSideEffect, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
   let summary = "tensor addition";
   let description = [{
     Element-wise addtion of two compatible tensors.
@@ -60,7 +61,7 @@ def AddOp : Toy_Op<"add", [NoSideEffect]> {
   ];
 }
 
-def MulOp : Toy_Op<"mul", [NoSideEffect]> {
+def MulOp : Toy_Op<"mul", [NoSideEffect, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
   let summary = "tensor multiplication";
   let description = [{
     Element-wise multiplication.
@@ -77,7 +78,8 @@ def MulOp : Toy_Op<"mul", [NoSideEffect]> {
   ];
 }
 
-def TransposeOp : Toy_Op<"transpose", [NoSideEffect]> {
+def TransposeOp : Toy_Op<"transpose", [NoSideEffect,
+                                       DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
   let summary = "tensor transpose";
   let description = [{
     Transpose a tensor.
