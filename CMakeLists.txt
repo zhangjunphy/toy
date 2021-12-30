@@ -36,8 +36,10 @@ add_subdirectory(lib)
 
 add_llvm_executable(toy ${PROJECT_SOURCE_DIR}/src/toy.cpp)
 llvm_update_compile_flags(toy)
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 target_link_libraries(toy
   PRIVATE
+  ${dialect_libs}
   libtoy
   MLIRSupport MLIRAnalysis MLIRIR MLIRParser
   MLIRSideEffectInterfaces MLIRTransforms)

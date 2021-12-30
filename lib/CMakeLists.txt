@@ -7,6 +7,8 @@ add_library(libtoy
   mlir/Dialect.cpp
   mlir/MLIRGen.cpp
   mlir/Optimize.cpp
-  mlir/ShapeInferencePass.cpp)
+  mlir/ShapeInferencePass.cpp
+  mlir/LowerToAffineLoops.cpp
+  )
 llvm_update_compile_flags(libtoy)
 add_dependencies(libtoy ToyOpsIncGen ToyOptimizeIncGen ToyShapeInferenceOpInterfaceGen)

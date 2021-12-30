@@ -85,7 +85,7 @@ def TransposeOp : Toy_Op<"transpose", [NoSideEffect,
     Transpose a tensor.
   }];
 
-  let arguments = (ins F64Tensor:$lhs);
+  let arguments = (ins F64Tensor:$input);
   let results = (outs F64Tensor);
 
   let hasCanonicalizer = 1;
@@ -141,7 +141,7 @@ def PrintOp : Toy_Op<"print", [HasParent<"FuncOp">]> {
     Print contents of a tensor.
   }];
 
-  let arguments = (ins F64Tensor:$input);
+  let arguments = (ins AnyTypeOf<[F64Tensor, F64MemRef]>:$input);
 }
 
 #endif //TOY_OPS

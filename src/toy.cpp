@@ -16,6 +16,7 @@
 #include "toy/Parser.h"
 #include "toy/Passes.h"
 
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Pass/Pass.h"
@@ -36,12 +37,13 @@ static cl::opt<std::string> inputFilename(cl::Positional,
                                           cl::init("-"),
                                           cl::value_desc("filename"));
 namespace {
-enum Action { None, DumpAST, DumpMLIR };
+enum Action { None, DumpAST, DumpMLIR, DumpMLIRAffine };
 }
 static cl::opt<enum Action> emitAction(
     "emit", cl::desc("Select the kind of output desired"),
     cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
-    cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")));
+    cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")),
+    cl::values(clEnumValN(DumpMLIRAffine, "affine", "output the affine dump")));
 
 static cl::opt<bool> enableOpt("opt", cl::desc("Enable optimizations"));
 
@@ -71,11 +73,28 @@ int dumpMLIR() {
     return 1;
 
   mlir::PassManager pm(&context);
-  pm.addNestedPass<mlir::FuncOp>(mlir::toy::createShapeInferencePass());
+  mlir::applyPassManagerCLOptions(pm);
+
+  bool isLoweringToAffine = emitAction >= Action::DumpMLIRAffine;
+
   if (enableOpt) {
-    mlir::applyPassManagerCLOptions(pm);
-    pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
+    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+    optPM.addPass(mlir::toy::createShapeInferencePass());
+    optPM.addPass(mlir::createCanonicalizerPass());
   }
+
+  if (isLoweringToAffine) {
+    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+    optPM.addPass(mlir::toy::createShapeInferencePass());
+    optPM.addPass(mlir::toy::createLowerToAffinePass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+
+    if (enableOpt) {
+      optPM.addPass(mlir::createLoopFusionPass());
+      optPM.addPass(mlir::createAffineScalarReplacementPass());
+    }
+  }
+
   if (mlir::failed(pm.run(*module)))
     return 4;
 
@@ -95,6 +114,7 @@ int main(int argc, char **argv) {
     dump(*moduleAST);
     return 0;
   case Action::DumpMLIR:
+  case Action::DumpMLIRAffine:
     return dumpMLIR();
   default:
     llvm::errs() << "No action specified (parsing only?), use -emit=<action>\n";
