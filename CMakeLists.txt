@@ -31,6 +31,9 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
+add_subdirectory(include)
+add_subdirectory(src)
+
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -38,5 +41,8 @@ include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
+
 add_executable(toy src/main.cc src/AST.cc)
-target_link_libraries(toy PRIVATE MLIRSupport)
+target_link_libraries(toy PRIVATE MLIRSupport ${dialect_libs} ${conversion_libs})

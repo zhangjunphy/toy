@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Parser.h"
+#include "parser/Parser.h"
+#include "toy/Dialect.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
