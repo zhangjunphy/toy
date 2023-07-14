@@ -25,14 +25,9 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
   mlir_configure_python_dev_packages()
 endif()
 
-add_compile_options(-fno-rtti)
-
 set(LLVM_LINK_COMPONENTS
   Support
   )
-
-add_subdirectory(include)
-add_subdirectory(src)
 
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
@@ -40,6 +35,11 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
+
+add_compile_options(-fno-rtti)
+
+add_subdirectory(include)
+add_subdirectory(src)
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)

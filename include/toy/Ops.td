@@ -25,7 +25,7 @@ def ConstantOp : Toy_Op<"constant"> {
     }];
 
     let builders = [
-        OpBuilder<(ins "DenseElementsAttr":$value), [{
+        OpBuilder<(ins "mlir::DenseElementsAttr":$value), [{
           build(builder, result, value.getType(), value);
         }]>,
 
