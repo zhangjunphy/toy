@@ -44,5 +44,5 @@ add_subdirectory(src)
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
-add_executable(toy src/main.cc src/AST.cc)
+add_executable(toy src/main.cc src/parser/AST.cc src/toy/Dialect.cc src/toy/MLIRGen.cc)
 target_link_libraries(toy PRIVATE MLIRSupport ${dialect_libs} ${conversion_libs})

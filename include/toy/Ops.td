@@ -27,10 +27,8 @@ def ConstantOp : Toy_Op<"constant", [Pure]> {
     OpBuilder<(ins "DenseElementsAttr":$value), [{
       build($_builder, $_state, value.getType(), value);
     }]>,
-
-  OpBuilder<(ins "double":$value)>
-];
-
+    OpBuilder<(ins "double":$value)>
+  ];
 
   let arguments = (ins F64ElementsAttr:$value);
   let results = (outs F64Tensor);
@@ -115,20 +113,20 @@ def ReshapeOp : Toy_Op<"reshape"> {
   let summary = "tensor reshape";
 
   let arguments = (ins F64Tensor:$input);
-  let results = (outs StaticShapeTensorOf<[F64]>;
+  let results = (outs StaticShapeTensorOf<[F64]>);
   let assemblyFormat = [{
     `(` $input `:` type($input) `)` attr-dict `to` type(results)
   }];
 }
 
-def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp", Terminator]> {
+def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">, Terminator]> {
   let summary = "return";
 
   let arguments = (ins Variadic<F64Tensor>:$input);
   let assemblyFormat = "($input^ `:` type($input))? attr-dict ";
 
   let builders = [
-    OpBuilder<(ins), [{ build($_builder, $_state, std::nullopt) }]>
+    OpBuilder<(ins), [{ build($_builder, $_state, std::nullopt); }]>
   ];
 
   let extraClassDeclaration = [{
@@ -147,10 +145,11 @@ def TransposeOp : Toy_Op<"transpose"> {
   }];
 
   let builders = [
-    OpBuilder<ins "Value":$input>
-  ]
+    OpBuilder<(ins "Value":$input)>
+  ];
 
   let hasVerifier = 1;
+  let hasCanonicalizer = 1;
 }
 
 #endif
