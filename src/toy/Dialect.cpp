@@ -6,7 +6,7 @@
 #include "mlir/IR/OpImplementation.h"
 
 using namespace mlir;
-using namespace toy;
+using namespace mlir::toy;
 
 #include "toy/Dialect.cpp.inc"
 
