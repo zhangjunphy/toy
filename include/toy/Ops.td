@@ -53,6 +53,34 @@ def AddOp : Toy_Op<"add", [DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]
   ];
 }
 
+def MulOp : Toy_Op<"mul", [DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
+  let summary = "eltwise multiplication";
+  let arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs);
+  let results = (outs F64Tensor);
+
+  let hasCustomAssemblyFormat = 1;
+
+  let builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
+  ];
+}
+
+def TransposeOp : Toy_Op<"transpose", [Pure, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
+  let arguments = (ins F64Tensor:$input);
+  let results = (outs F64Tensor);
+
+  let assemblyFormat = [{
+    `(` $input `:` type($input) `)` attr-dict `to` type(results)
+  }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$input)>
+  ];
+
+  let hasVerifier = 1;
+  let hasCanonicalizer = 1;
+}
+
 def FuncOp : Toy_Op<"func", [
   FunctionOpInterface, IsolatedFromAbove,
   DeclareOpInterfaceMethods<CallableOpInterface>
@@ -96,18 +124,6 @@ def GenericCallOp :Toy_Op<"generic_cal", [
   ];
 }
 
-def MulOp : Toy_Op<"mul", [DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
-  let summary = "eltwise multiplication";
-  let arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs);
-  let results = (outs F64Tensor);
-
-  let hasCustomAssemblyFormat = 1;
-
-  let builders = [
-    OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
-  ];
-}
-
 def PrintOp : Toy_Op<"print"> {
   let summary = "print";
 
@@ -142,22 +158,6 @@ def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">, Terminator]> {
   }];
 
   let hasVerifier = 1;
-}
-
-def TransposeOp : Toy_Op<"transpose", [Pure, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>]> {
-  let arguments = (ins F64Tensor:$input);
-  let results = (outs F64Tensor);
-
-  let assemblyFormat = [{
-    `(` $input `:` type($input) `)` attr-dict `to` type(results)
-  }];
-
-  let builders = [
-    OpBuilder<(ins "Value":$input)>
-  ];
-
-  let hasVerifier = 1;
-  let hasCanonicalizer = 1;
 }
 
 def CastOp : Toy_Op<"cast", [

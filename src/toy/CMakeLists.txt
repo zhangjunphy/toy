@@ -6,6 +6,7 @@ add_mlir_dialect_library(MLIRToy
   Dialect.cc
   RewritePatterns.cc
   ShapeInferencePass.cc
+  LoweringPass.cc
 
   DEPENDS
   OpsIncGen
