@@ -1,3 +1,6 @@
+set(LLVM_TARGET_DEFINITIONS ShapeInferenceOpInterface.td)
+mlir_tablegen(ShapeInterfaceOpInterface.h.inc -gen-op-interface-decls)
+mlir_tablegen(ShapeInterfaceOpInterface.cc.inc -gen-op-interface-defs)
 set(LLVM_TARGET_DEFINITIONS Ops.td)
 mlir_tablegen(Ops.h.inc -gen-op-decls)
 mlir_tablegen(Ops.cc.inc -gen-op-defs)

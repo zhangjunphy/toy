@@ -5,12 +5,11 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 
-#include "Simplify.h"
+#include "toy/Dialect.cc.inc"
+#include "toy/ShapeInferenceInterface.h"
 
 using namespace mlir;
-using namespace mlir::toy;
-
-#include "toy/Dialect.cc.inc"
+using namespace toy;
 
 /// Dialect initialization, the instance will be owned by the context. This is
 /// the point of registration of types and operations for the dialect.
@@ -19,6 +18,7 @@ void ToyDialect::initialize() {
 #define GET_OP_LIST
 #include "toy/Ops.cc.inc"
       >();
+  addInterfaces<ToyInlinerInterface>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -173,12 +173,19 @@ void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                      mlir::SymbolRefAttr::get(builder.getContext(), callee));
 }
 
+CallInterfaceCallable GenericCallOp::getCallableForCallee() {
+  return getOperation()->getAttrOfType<SymbolRefAttr>("callee");
+}
+
+Operation::operand_range GenericCallOp::getArgOperands() { return getInputs(); }
+
 //===----------------------------------------------------------------------===//
 // FuncOp
 //===----------------------------------------------------------------------===//
 
 void FuncOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                    llvm::StringRef name, mlir::FunctionType type,
+
                    llvm::ArrayRef<mlir::NamedAttribute> attrs) {
   // FunctionOpInterface provides a convenient `build` method that will populate
   // the state of our FuncOp, and create an entry block.
@@ -208,6 +215,10 @@ void FuncOp::print(mlir::OpAsmPrinter &p) {
       p, *this, /*isVariadic=*/false, getFunctionTypeAttrName(),
       getArgAttrsAttrName(), getResAttrsAttrName());
 }
+
+Region *FuncOp::getCallableRegion() { return &getBody(); }
+
+ArrayRef<Type> FuncOp::getCallableResults() { return getResultTypes(); }
 
 //===----------------------------------------------------------------------===//
 // MulOp
@@ -288,8 +299,19 @@ mlir::LogicalResult TransposeOp::verify() {
   return mlir::success();
 }
 
-void TransposeOp::getCanonicalizationPatterns(RewritePatternSet &results, MLIRContext *context) {
-  results.add<SimplifyRedundantTranspose>(context);
+//===----------------------------------------------------------------------===//
+// CastOp
+//===----------------------------------------------------------------------===//
+
+bool CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+
+  TensorType ti = inputs.front().dyn_cast<TensorType>();
+  TensorType to = outputs.front().dyn_cast<TensorType>();
+  if (!ti || !to || ti.getElementType() != to.getElementType())
+    return false;
+  return !ti.hasRank() || !to.hasRank() || ti == to;
 }
 
 //===----------------------------------------------------------------------===//

@@ -10,15 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "parser/Parser.h"
 #include "toy/Dialect.h"
 #include "toy/MLIRGen.h"
-#include "parser/Parser.h"
+#include "toy/ShapeInferencePass.h"
 
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
@@ -48,6 +51,8 @@ static cl::opt<enum InputType> inputType(
     cl::values(clEnumValN(Toy, "toy", "input file in Toy format.")),
     cl::values(clEnumValN(MLIR, "mlir", "input file in MLIR format")));
 
+static cl::opt<bool> enableOpt("opt", cl::desc("Enable optimizations"));
+
 /// Returns a Toy AST resulting from parsing the file or a nullptr on error.
 std::unique_ptr<toy::ModuleAST> parseInputFile(llvm::StringRef filename) {
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
@@ -60,6 +65,29 @@ std::unique_ptr<toy::ModuleAST> parseInputFile(llvm::StringRef filename) {
   LexerBuffer lexer(buffer.begin(), buffer.end(), std::string(filename));
   Parser parser(lexer);
   return parser.parseModule();
+}
+
+mlir::OwningOpRef<mlir::ModuleOp> parseMLIRModule(mlir::MLIRContext *context,
+                                                  llvm::StringRef filename) {
+  // Parse from toy ast or mlir asm file
+  if (inputType != InputType::MLIR &&
+      !llvm::StringRef(inputFilename).endswith(".mlir")) {
+    auto moduleAST = parseInputFile(inputFilename);
+    if (!moduleAST)
+      return nullptr;
+    return mlirGen(*context, *moduleAST);
+  } else {
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
+        llvm::MemoryBuffer::getFileOrSTDIN(inputFilename);
+    if (std::error_code ec = fileOrErr.getError()) {
+      llvm::errs() << "Cannot open file: " << ec.message() << "\n";
+      return nullptr;
+    }
+
+    llvm::SourceMgr sourceMgr;
+    sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), llvm::SMLoc());
+    return mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, context);
+  }
 }
 
 int dumpAST() {
@@ -80,33 +108,22 @@ int dumpMLIR() {
   mlir::MLIRContext context;
   context.getOrLoadDialect<mlir::toy::ToyDialect>();
 
-  if (inputType != InputType::MLIR &&
-      !llvm::StringRef(inputFilename).endswith(".mlir")) {
-    auto moduleAST = parseInputFile(inputFilename);
-    if (!moduleAST)
-      return 6;
-    mlir::OwningOpRef<mlir::ModuleOp> module = mlirGen(context, *moduleAST);
-    if (!module)
-      return 1;
-
-    module->dump();
-    return 0;
-  }
-
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
-    llvm::MemoryBuffer::getFileOrSTDIN(inputFilename);
-  if (std::error_code ec = fileOrErr.getError()) {
-    llvm::errs() << "Cannot open file: " << ec.message() << "\n";
-    return -1;
-  }
-
-  llvm::SourceMgr sourceMgr;
-  sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), llvm::SMLoc());
   mlir::OwningOpRef<mlir::ModuleOp> module =
-    mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
+      parseMLIRModule(&context, inputFilename);
   if (!module) {
-    llvm::errs() << "Error parsing file " << inputFilename << "\n";
-    return 3;
+    llvm::errs() << "Error parsing input file " + inputFilename + "\n";
+    return 2;
+  }
+
+  if (enableOpt) {
+    mlir::PassManager pm(&context);
+    mlir::applyPassManagerCLOptions(pm);
+    pm.addPass(mlir::createInlinerPass());
+    pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCanonicalizerPass());
+    pm.addNestedPass<mlir::toy::FuncOp>(mlir::toy::createShapeInferencePass());
+    if (mlir::failed(pm.run(*module))) {
+      return 4;
+    }
   }
 
   module->dump();

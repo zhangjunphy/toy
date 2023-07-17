@@ -1,11 +1,15 @@
-#pragma once
-
 #include "toy/Dialect.h"
 
 #include "mlir/IR/PatternMatch.h"
 
 using namespace mlir;
 using namespace mlir::toy;
+#include "toy/RewritePatterns.cc.inc"
+
+void ReshapeOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.add<ReshapeReshapeOptPattern, FoldConstantReshapeOptPattern>(context);
+}
 
 struct SimplifyRedundantTranspose : public mlir::OpRewritePattern<TransposeOp> {
   SimplifyRedundantTranspose(mlir::MLIRContext *context)
@@ -24,3 +28,8 @@ struct SimplifyRedundantTranspose : public mlir::OpRewritePattern<TransposeOp> {
     return success();
   }
 };
+
+void TransposeOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                              MLIRContext *context) {
+  results.add<SimplifyRedundantTranspose>(context);
+}

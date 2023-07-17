@@ -1,0 +1,5 @@
+def main() {
+  var a = [[1, 2], [2, 3], [3, 4]];
+  var b = a * a;
+  print(b);
+}

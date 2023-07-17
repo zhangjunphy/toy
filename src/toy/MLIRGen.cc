@@ -10,7 +10,6 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/Support/raw_ostream.h"
@@ -100,8 +99,14 @@ private:
     llvm::SmallVector<mlir::Type, 4> argTypes(proto.getArgs().size(),
                                               getType(VarType{}));
     auto funcType = builder.getFunctionType(argTypes, std::nullopt);
-    return builder.create<mlir::toy::FuncOp>(location, proto.getName(),
-                                             funcType);
+    auto funcOp =
+        builder.create<mlir::toy::FuncOp>(location, proto.getName(), funcType);
+
+    // Inline all function exception main to discard them after inlining
+    if (proto.getName() != "main") {
+      funcOp.setPrivate();
+    }
+    return funcOp;
   }
 
   /// Emit a new function and add it to the MLIR module.
