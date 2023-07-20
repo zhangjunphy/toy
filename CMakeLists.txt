@@ -26,8 +26,7 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
 endif()
 
 set(LLVM_LINK_COMPONENTS
-  Support
-  )
+  Support)
 
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
