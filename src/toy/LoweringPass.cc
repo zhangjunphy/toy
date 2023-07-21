@@ -356,11 +356,11 @@ struct AffineToLLVMLoweringPass
   }
 };
 
-std::unique_ptr<mlir::Pass> createLoweringPass() {
+std::unique_ptr<mlir::Pass> createLoweringToyToAffinePass() {
   return std::make_unique<ToyToAffineLoweringPass>();
 }
 
-std::unique_ptr<mlir::Pass> createLoweringToLLVMPass() {
+std::unique_ptr<mlir::Pass> createLoweringAffineToLLVMPass() {
   return std::make_unique<AffineToLLVMLoweringPass>();
 }
 } // namespace toy

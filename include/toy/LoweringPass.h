@@ -4,7 +4,7 @@
 
 namespace mlir {
 namespace toy {
-std::unique_ptr<mlir::Pass> createLoweringPass();
-std::unique_ptr<mlir::Pass> createLoweringToLLVMPass();
+std::unique_ptr<mlir::Pass> createLoweringToyToAffinePass();
+std::unique_ptr<mlir::Pass> createLoweringAffineToLLVMPass();
 } // namespace toy
 } // namespace mlir

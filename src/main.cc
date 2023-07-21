@@ -18,12 +18,15 @@
 
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/ExecutionEngine/ExecutionEngine.h"
+#include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -34,6 +37,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace toy;
@@ -44,7 +48,7 @@ static cl::opt<std::string> inputFilename(cl::Positional,
                                           cl::init("-"),
                                           cl::value_desc("filename"));
 namespace {
-enum Action { None, DumpAST, DumpMLIR, DumpAffine, DumpLLVM };
+enum Action { None, DumpAST, DumpMLIR, DumpAffine, DumpLLVM, RunJIT };
 enum InputType { Toy, MLIR };
 } // namespace
 
@@ -53,7 +57,8 @@ static cl::opt<enum Action> emitAction(
     cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
     cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")),
     cl::values(clEnumValN(DumpAffine, "affine", "output the affine dump")),
-    cl::values(clEnumValN(DumpLLVM, "llvm", "output the llvm ir dump")));
+    cl::values(clEnumValN(DumpLLVM, "llvm", "output the llvm ir dump")),
+    cl::values(clEnumValN(RunJIT, "jit", "output the llvm ir dump")));
 static cl::opt<enum InputType> inputType(
     "x", cl::init(Toy), cl::desc("Input file format"),
     cl::values(clEnumValN(Toy, "toy", "input file in Toy format.")),
@@ -112,31 +117,26 @@ int dumpAST() {
   return 0;
 }
 
-int dumpMLIR() {
-  mlir::MLIRContext context;
-  context.getOrLoadDialect<mlir::toy::ToyDialect>();
+int runJIT(mlir::ModuleOp module) {
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
 
-  mlir::OwningOpRef<mlir::ModuleOp> module =
-      parseMLIRModule(&context, inputFilename);
-  if (!module) {
-    llvm::errs() << "Error parsing input file " + inputFilename + "\n";
-    return 2;
+  auto optPipeline =
+      mlir::makeOptimizingTransformer(enableOpt ? 3 : 0, 0, nullptr);
+  auto executionEngine =
+      mlir::ExecutionEngine::create(module, {.transformer = optPipeline});
+  assert(executionEngine && "failed to construct execution engine.");
+  auto &engine = executionEngine.get();
+  auto invocationRes = engine->invokePacked("main");
+  if (invocationRes) {
+    llvm::errs() << "JIT invocation failed.\n";
+    return -1;
   }
 
-  mlir::PassManager pm(&context);
-  mlir::applyPassManagerCLOptions(pm);
-  pm.addPass(mlir::createInlinerPass());
-  pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCanonicalizerPass());
-  pm.addNestedPass<mlir::toy::FuncOp>(mlir::toy::createShapeInferencePass());
-  if (mlir::failed(pm.run(*module))) {
-    return 4;
-  }
-
-  module->dump();
   return 0;
 }
 
-int dumpAffine() {
+int runCompilePasses() {
   mlir::MLIRContext context;
   context.getOrLoadDialect<mlir::toy::ToyDialect>();
 
@@ -149,12 +149,24 @@ int dumpAffine() {
 
   mlir::PassManager pm(&context);
   mlir::applyPassManagerCLOptions(pm);
+  auto dumpModule = [&]() {
+    if (mlir::failed(pm.run(*module))) {
+      return 4;
+    }
+    module->dump();
+    return 0;
+  };
+
   pm.addPass(mlir::createInlinerPass());
   pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCanonicalizerPass());
   pm.addNestedPass<mlir::toy::FuncOp>(mlir::toy::createShapeInferencePass());
-  pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCSEPass());
+  if (enableOpt)
+    pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCSEPass());
+  if (emitAction < Action::DumpAffine) {
+    return dumpModule();
+  }
 
-  pm.addPass(mlir::toy::createLoweringPass());
+  pm.addPass(mlir::toy::createLoweringToyToAffinePass());
   pm.addNestedPass<mlir::func::FuncOp>(mlir::createCanonicalizerPass());
   pm.addNestedPass<mlir::func::FuncOp>(mlir::createCSEPass());
   if (enableOpt) {
@@ -162,53 +174,29 @@ int dumpAffine() {
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::createAffineScalarReplacementPass());
   }
+  if (emitAction < Action::DumpLLVM) {
+    return dumpModule();
+  }
+
+  pm.addPass(mlir::toy::createLoweringAffineToLLVMPass());
   if (mlir::failed(pm.run(*module))) {
     return 4;
   }
 
-  module->dump();
-  return 0;
-}
-
-int dumpLLVM() {
-  mlir::MLIRContext context;
-  context.getOrLoadDialect<mlir::toy::ToyDialect>();
-
-  mlir::OwningOpRef<mlir::ModuleOp> module =
-      parseMLIRModule(&context, inputFilename);
-  if (!module) {
-    llvm::errs() << "Error parsing input file " + inputFilename + "\n";
-    return 2;
+  mlir::registerLLVMDialectTranslation(*module->getContext());
+  if (emitAction == Action::DumpLLVM) {
+    llvm::LLVMContext llvmContext;
+    std::unique_ptr<llvm::Module> llvmModule =
+        mlir::translateModuleToLLVMIR(*module, llvmContext);
+    if (!llvmModule) {
+      return 5;
+    }
+    llvmModule->dump();
   }
 
-  mlir::PassManager pm(&context);
-  mlir::applyPassManagerCLOptions(pm);
-  pm.addPass(mlir::createInlinerPass());
-  pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCanonicalizerPass());
-  pm.addNestedPass<mlir::toy::FuncOp>(mlir::toy::createShapeInferencePass());
-  pm.addNestedPass<mlir::toy::FuncOp>(mlir::createCSEPass());
-
-  pm.addPass(mlir::toy::createLoweringPass());
-  pm.addNestedPass<mlir::func::FuncOp>(mlir::createCanonicalizerPass());
-  pm.addNestedPass<mlir::func::FuncOp>(mlir::createCSEPass());
-  if (enableOpt) {
-    pm.addNestedPass<mlir::func::FuncOp>(mlir::createLoopFusionPass());
-    pm.addNestedPass<mlir::func::FuncOp>(
-        mlir::createAffineScalarReplacementPass());
+  if (emitAction == Action::RunJIT) {
+    runJIT(*module);
   }
-  pm.addPass(mlir::toy::createLoweringToLLVMPass());
-  if (mlir::failed(pm.run(*module))) {
-    return 4;
-  }
-  //module->dump();
-
-  llvm::LLVMContext llvmContext;
-  std::unique_ptr<llvm::Module> llvmModule =
-      mlir::translateModuleToLLVMIR(module->getOperation(), llvmContext);
-  if (!llvmModule) {
-    return 4;
-  }
-  llvmModule->dump();
 
   return 0;
 }
@@ -222,11 +210,10 @@ int main(int argc, char **argv) {
   case Action::DumpAST:
     return dumpAST();
   case Action::DumpMLIR:
-    return dumpMLIR();
   case Action::DumpAffine:
-    return dumpAffine();
   case Action::DumpLLVM:
-    return dumpLLVM();
+  case Action::RunJIT:
+    return runCompilePasses();
   default:
     llvm::errs() << "No action specified (parsing only?), use -emit=<action>\n";
   }

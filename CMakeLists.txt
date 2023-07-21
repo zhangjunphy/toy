@@ -26,7 +26,10 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
 endif()
 
 set(LLVM_LINK_COMPONENTS
-  Support)
+  Core
+  Support
+  nativecodegen
+  OrcJIT)
 
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
@@ -46,4 +49,20 @@ get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
 add_executable(toy src/main.cc src/parser/AST.cc src/toy/Dialect.cc src/toy/MLIRGen.cc)
-target_link_libraries(toy PRIVATE MLIRSupport ${dialect_libs} ${conversion_libs})
+target_link_libraries(toy PRIVATE ${dialect_libs} ${conversion_libs}
+  MLIRAnalysis
+  MLIRCallInterfaces
+  MLIRCastInterfaces
+  MLIRExecutionEngine
+  MLIRIR
+  MLIRLLVMCommonConversion
+  MLIRLLVMDialect
+  MLIRLLVMToLLVMIRTranslation
+  MLIRMemRefDialect
+  MLIRParser
+  MLIRPass
+  MLIRSideEffectInterfaces
+  MLIRSupport
+  MLIRTargetLLVMIRExport
+  MLIRTransforms
+)
